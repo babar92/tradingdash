@@ -1,4 +1,4 @@
-![Trading Dashboard](assets/tradingdash-pres.png)
+![Trading Dashboard](assets/demo.gif)
 
 # Trading Dashboard
 
