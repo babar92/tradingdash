@@ -6,6 +6,7 @@ const dataBridge = new DataBridge();
 let panes = [];
 let allSymbols = [];
 let cryptoSymbols = [];
+let watchlist = null;
 
 async function init() {
   loadSymbolsInline();
@@ -16,8 +17,9 @@ async function init() {
     saveState();
   });
 
-  const savedCount = localStorage.getItem('tradingDash_chartCount');
-  const initialCount = savedCount ? parseInt(savedCount) : 2;
+  localStorage.removeItem('tradingDash_chartCount');
+  localStorage.removeItem('tradingDash_paneConfigs');
+  const initialCount = 1;
   chartCountSelect.value = initialCount;
 
   createPanes(8);
@@ -25,26 +27,6 @@ async function init() {
 
   for (const pane of panes) {
     pane.setSymbolList(allSymbols);
-  }
-
-  const savedConfigs = localStorage.getItem('tradingDash_paneConfigs');
-  if (savedConfigs) {
-    try {
-      const configs = JSON.parse(savedConfigs);
-      for (const config of configs) {
-        const pane = panes[configs.indexOf(config)];
-        if (pane && config.symbol) {
-          pane.symbol = config.symbol;
-          pane.source = config.source || 'yfinance';
-          pane.timeframe = config.timeframe || '1h';
-          pane.symbolLabel.textContent = config.symbol;
-          pane.timeframeSelect.value = pane.timeframe;
-          const opt = pane.symbolSelect.querySelector(`option[value="${config.symbol}"]`);
-          if (opt) opt.selected = true;
-          setTimeout(() => pane.loadData(), 200);
-        }
-      }
-    } catch(e) { console.error('Restore error:', e); }
   }
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -65,10 +47,31 @@ async function init() {
         tfBtn.classList.add('active');
       }
     }
-    setTimeout(() => panes[0].loadData(), 300);
+    setTimeout(() => { panes[0].loadData(); setActiveWatchlistSymbol(urlSymbol); }, 300);
   }
 
-  new Watchlist(watchlistContainer, dataBridge, addSymbolToPane);
+  if (!panes[0].symbol) {
+    const sym = 'BTC';
+    panes[0].symbol = sym;
+    panes[0].source = 'hyperliquid';
+    panes[0].timeframe = '4h';
+    panes[0].symbolLabel.textContent = sym;
+    const opt = panes[0].symbolSelect.querySelector(`option[value="${sym}"]`);
+    if (opt) opt.selected = true;
+    const tfBtn = panes[0].timeframeBar.querySelector('[data-tf="4h"]');
+    if (tfBtn) {
+      panes[0].timeframeBar.querySelector('.active')?.classList.remove('active');
+      tfBtn.classList.add('active');
+    }
+    setTimeout(() => {
+      const ichiBtn = panes[0].container.querySelector('.layer-row[data-indicator="ichimoku"]');
+      if (ichiBtn && !ichiBtn.classList.contains('active')) ichiBtn.click();
+      panes[0].loadData();
+      setActiveWatchlistSymbol(sym);
+    }, 300);
+  }
+
+  watchlist = new Watchlist(watchlistContainer, dataBridge, addSymbolToPane);
 
   dataBridge.init().catch(e => console.error('Bridge init:', e));
 }
@@ -115,8 +118,12 @@ function createPanes(maxCount) {
     div.className = 'pane';
     div.id = `pane-${i}`;
     gridContainer.appendChild(div);
-    panes.push(new ChartPane(i, div, dataBridge, gridManager));
+    panes.push(new ChartPane(i, div, dataBridge, gridManager, setActiveWatchlistSymbol));
   }
+}
+
+function setActiveWatchlistSymbol(symbol) {
+  if (watchlist) watchlist.setActiveSymbol(symbol);
 }
 
 function setChartCount(count) {
@@ -143,6 +150,7 @@ function addSymbolToPane(symbol) {
   const opt = targetPane.symbolSelect.querySelector(`option[value="${symbol}"]`);
   if (opt) opt.selected = true;
   targetPane.loadData();
+  setActiveWatchlistSymbol(symbol);
   saveState();
 }
 

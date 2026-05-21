@@ -55,6 +55,19 @@ def api_symbols_embedded():
             pass
     return jsonify(all_symbols)
 
+@app.route('/api/price-summary')
+def api_price_summary():
+    source_name = request.args.get('source', 'yfinance')
+    symbol = request.args.get('symbol', '')
+    try:
+        source = get_source(source_name)
+        data = source.get_price_summary(symbol)
+        return jsonify(data)
+    except KeyError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/ohlc')
 def api_get_ohlc():
     source_name = request.args.get('source', 'yfinance')

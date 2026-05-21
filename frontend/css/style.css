@@ -131,23 +131,172 @@ html, body {
   background: transparent;
 }
 
+.watchlist-col-header {
+  display: grid;
+  grid-template-columns: 1fr auto auto 20px;
+  padding: 2px 10px 4px 14px;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.watchlist-col-header span:nth-child(2) {
+  text-align: right;
+}
+
+.watchlist-col-header span:nth-child(3) {
+  text-align: right;
+  min-width: 52px;
+}
+
 .watchlist-items {
   display: flex;
   flex-direction: column;
 }
 
+.watchlist-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  position: relative;
+}
+
+.wl-search-input {
+  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: inherit;
+  outline: none;
+}
+
+.wl-search-input:focus {
+  border-color: var(--accent);
+}
+
+.wl-search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.wl-search-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.wl-search-btn:hover {
+  background: #1e4bd1;
+}
+
+.wl-search-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 10px;
+  right: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.wl-search-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  align-items: center;
+  font-size: 12px;
+  transition: background 0.1s;
+}
+
+.wl-search-item:hover {
+  background: rgba(41,98,255,0.1);
+}
+
+.wl-si-symbol {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.wl-si-name {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wl-si-source {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-align: right;
+}
+
 .watchlist-item {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  padding: 4px 14px;
+  grid-template-columns: 1fr auto auto 20px;
+  padding: 4px 10px 4px 14px;
   cursor: pointer;
   transition: background 0.1s;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
 .watchlist-item:hover {
   background: rgba(41,98,255,0.06);
+}
+
+.watchlist-item.active {
+  background: rgba(41,98,255,0.12);
+  border-left: 3px solid var(--accent);
+  padding-left: 11px;
+}
+
+.wl-del-btn {
+  opacity: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.watchlist-item:hover .wl-del-btn {
+  opacity: 1;
+}
+
+.wl-del-btn:hover {
+  color: var(--red);
+  background: rgba(239,83,80,0.15);
 }
 
 .wl-symbol {
@@ -324,6 +473,7 @@ html, body {
 }
 
 .main-chart {
+  position: relative;
   flex: 1;
   min-height: 50px;
 }
@@ -451,6 +601,20 @@ html, body {
 
 .drawings-canvas {
   pointer-events: none;
+}
+
+.chart-watermark {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #9a9a9a;
+  font-family: 'Courier New', monospace;
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+  z-index: 100;
 }
 
 @media (max-width: 900px) {

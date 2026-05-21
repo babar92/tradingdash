@@ -1,9 +1,10 @@
 class ChartPane {
-  constructor(paneId, container, dataBridge, gridManager) {
+  constructor(paneId, container, dataBridge, gridManager, onSymbolLoaded) {
     this.paneId = paneId;
     this.container = container;
     this.dataBridge = dataBridge;
     this.gridManager = gridManager;
+    this.onSymbolLoaded = onSymbolLoaded || (() => {});
 
     this.symbol = null;
     this.source = null;
@@ -13,6 +14,7 @@ class ChartPane {
 
     this.mainChart = null;
     this.candleSeries = null;
+    this._pricePollRef = null;
     this.chartType = 'candles';
     this.subCharts = {};
     this.indicatorSeries = {};
@@ -106,6 +108,11 @@ class ChartPane {
     this.mainChartDiv.className = 'main-chart';
     this.chartArea.appendChild(this.mainChartDiv);
 
+    this.watermarkEl = document.createElement('div');
+    this.watermarkEl.className = 'chart-watermark';
+    this.watermarkEl.textContent = '';
+    this.mainChartDiv.appendChild(this.watermarkEl);
+
     this.subChartDiv = document.createElement('div');
     this.subChartDiv.className = 'sub-charts';
     this.chartArea.appendChild(this.subChartDiv);
@@ -185,15 +192,6 @@ class ChartPane {
       },
       rightPriceScale: {
         borderColor: '#2a2e39',
-      },
-      watermark: {
-        visible: true,
-        text: this.symbol || '',
-        color: 'rgba(255, 255, 255, 0.14)',
-        fontSize: 72,
-        fontFamily: 'monospace',
-        horzAlign: 'center',
-        vertAlign: 'center',
       },
     });
 
@@ -308,6 +306,7 @@ class ChartPane {
     this.symbolLabel.textContent = symbol;
     this._updateWatermark();
     await this.loadData();
+    this.onSymbolLoaded(symbol);
   }
 
   onTimeframeChange() {
@@ -324,6 +323,7 @@ class ChartPane {
     }
 
     this.ohlcData = data;
+    this._updateWatermark();
 
     if (this.candleSeries) {
       this.mainChart.removeSeries(this.candleSeries);
@@ -333,6 +333,14 @@ class ChartPane {
     this.dataBridge.subscribe(this.paneId, this.symbol, this.source, {
       onPrice: (update) => this.onPriceUpdate(update),
     });
+
+    if (this._pricePollRef) clearInterval(this._pricePollRef);
+    this._pricePollRef = setInterval(() => {
+      fetch(`/api/price-summary?source=${this.source}&symbol=${this.symbol}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data && data.price) this.onPriceUpdate(data); })
+        .catch(() => {});
+    }, 5000);
 
     this.clearIndicatorSeries();
     this.renderIndicators();
@@ -359,10 +367,51 @@ class ChartPane {
       this.tickerBar.classList.add(isUp ? 'flash-green' : 'flash-red');
     }
 
+    if (!this.candleSeries || this.ohlcData.length === 0) return;
+
     if (update.candle) {
-      this.ohlcData.push(update.candle);
+      const last = this.ohlcData[this.ohlcData.length - 1];
+      if (last.time === update.candle.time) {
+        this.ohlcData[this.ohlcData.length - 1] = update.candle;
+      } else {
+        this.ohlcData.push(update.candle);
+      }
       this.candleSeries.update(update.candle);
+    } else {
+      const tfSeconds = this._getTimeframeSeconds();
+      const now = Math.floor(Date.now() / 1000);
+      const candleTime = this._getCandleTime(now, tfSeconds);
+      let last = this.ohlcData[this.ohlcData.length - 1];
+
+      if (last.time === candleTime) {
+        last = { ...last };
+        last.high = Math.max(last.high, update.price);
+        last.low = Math.min(last.low, update.price);
+        last.close = update.price;
+        this.ohlcData[this.ohlcData.length - 1] = last;
+        this.candleSeries.update(last);
+      } else if (candleTime > last.time) {
+        const candle = {
+          time: candleTime,
+          open: update.price,
+          high: update.price,
+          low: update.price,
+          close: update.price,
+          volume: 0,
+        };
+        this.ohlcData.push(candle);
+        this.candleSeries.update(candle);
+      }
     }
+  }
+
+  _getTimeframeSeconds() {
+    const map = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '1d': 86400, '1w': 604800, '1M': 2592000 };
+    return map[this.timeframe] || 3600;
+  }
+
+  _getCandleTime(timestamp, seconds) {
+    return Math.floor(timestamp / seconds) * seconds;
   }
 
   toggleIndicator(key, enabled) {
@@ -546,10 +595,11 @@ class ChartPane {
   }
 
   _updateWatermark() {
-    if (this.mainChart) {
-      this.mainChart.applyOptions({
-        watermark: { text: this.symbol || '' }
-      });
+    if (this.watermarkEl) {
+      let label = this.symbol || '';
+      if (label && this.source === 'hyperliquid') label += 'USDT';
+      if (label) label += ' \u00B7 ' + this.timeframe;
+      this.watermarkEl.textContent = label;
     }
   }
 

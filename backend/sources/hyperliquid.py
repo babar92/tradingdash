@@ -140,6 +140,51 @@ class HyperliquidSource:
             aggregated.append(agg)
         return aggregated[-limit:]
 
+    def get_price_summary(self, symbol):
+        try:
+            resp = requests.post(HL_API, json={"type": "allMids"}, timeout=5)
+            if resp.status_code != 200:
+                return {"symbol": symbol, "price": 0, "change": 0, "changePercent": 0}
+            mids = resp.json()
+            current_price = float(mids.get(symbol, 0))
+            if current_price == 0:
+                return {"symbol": symbol, "price": 0, "change": 0, "changePercent": 0}
+
+            now_ms = int(time.time() * 1000)
+            start_ms = now_ms - (86400 * 1000 * 2)
+
+            req = {
+                "type": "candleSnapshot",
+                "req": {
+                    "coin": symbol,
+                    "interval": "1h",
+                    "startTime": start_ms,
+                    "endTime": now_ms
+                }
+            }
+            resp = requests.post(HL_API, json=req, timeout=10)
+            candles = resp.json() if resp.status_code == 200 else []
+
+            if isinstance(candles, list) and len(candles) >= 2:
+                target_time = now_ms - (86400 * 1000)
+                closest = min(candles, key=lambda c: abs(c['t'] - target_time))
+                price_24h_ago = float(closest['o'])
+                change = current_price - price_24h_ago
+                change_percent = (change / price_24h_ago) * 100 if price_24h_ago > 0 else 0
+            else:
+                change = 0
+                change_percent = 0
+
+            return {
+                "symbol": symbol,
+                "price": round(current_price, 2),
+                "change": round(change, 2),
+                "changePercent": round(change_percent, 2)
+            }
+        except Exception as e:
+            print(f"Hyperliquid price summary error for {symbol}: {e}")
+            return {"symbol": symbol, "price": 0, "change": 0, "changePercent": 0}
+
     def subscribe(self, symbol, callback):
         if symbol not in self._ws_callbacks:
             self._ws_callbacks[symbol] = []

@@ -110,6 +110,39 @@ class YFinanceSource:
             print(f"yfinance OHLC error for {symbol}: {e}")
             return []
 
+    def get_price_summary(self, symbol):
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose')
+            prev_close = info.get('regularMarketPreviousClose')
+            if price and prev_close and prev_close > 0:
+                change = price - prev_close
+                change_percent = (change / prev_close) * 100
+            else:
+                data = ticker.history(period='2d', interval='1d')
+                if len(data) >= 2:
+                    prev_close = float(data['Close'].iloc[-2])
+                    price = float(data['Close'].iloc[-1])
+                    change = price - prev_close
+                    change_percent = (change / prev_close) * 100
+                elif len(data) == 1:
+                    price = float(data['Close'].iloc[-1])
+                    change = 0
+                    change_percent = 0
+                else:
+                    return {"symbol": symbol, "price": 0, "change": 0, "changePercent": 0}
+
+            return {
+                "symbol": symbol,
+                "price": round(price, 2),
+                "change": round(change, 2),
+                "changePercent": round(change_percent, 2)
+            }
+        except Exception as e:
+            print(f"yfinance price summary error for {symbol}: {e}")
+            return {"symbol": symbol, "price": 0, "change": 0, "changePercent": 0}
+
     def subscribe(self, symbol, callback):
         if symbol not in self._poll_callbacks:
             self._poll_callbacks[symbol] = []
@@ -157,7 +190,7 @@ class YFinanceSource:
                         cb(price_update)
             except Exception as e:
                 print(f"yfinance poll error for {symbol}: {e}")
-            time.sleep(6)
+            time.sleep(5)
 
     def stop(self):
         self._running = False
