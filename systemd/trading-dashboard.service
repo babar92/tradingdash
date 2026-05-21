@@ -1,0 +1,15 @@
+[Unit]
+Description=Trading Dashboard – Flask backend with Lightweight Charts
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/trading-dashboard
+ExecStart=/usr/bin/python3 %h/trading-dashboard/backend/app.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

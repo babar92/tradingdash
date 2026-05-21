@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8">
+<script src="js/lightweight-charts.js"></script>
+<style>
+html,body{margin:0;padding:0;height:100%;background:#111;color:#fff;font-family:sans-serif}
+#status{padding:10px;background:#1a1a2e;margin:5px;border-radius:4px;font-size:13px}
+</style>
+</head>
+<body>
+<div id="status">Loading...</div>
+<div id="chart" style="width:100%;height:calc(100vh - 60px);background:#131722"></div>
+<script>
+try {
+  document.getElementById('status').textContent = 'LightweightCharts: ' + (typeof LightweightCharts);
+  if (typeof LightweightCharts !== 'undefined') {
+    const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+      width: window.innerWidth,
+      height: window.innerHeight - 60,
+      layout: { background:{color:'#131722'}, textColor:'#d1d4dc' },
+      grid: { vertLines:{color:'#1e222d'}, horzLines:{color:'#1e222d'} },
+      timeScale: { timeVisible:true, secondsVisible:false }
+    });
+
+    // Add candles
+    const candle = chart.addSeries(LightweightCharts.CandlestickSeries, {
+      upColor:'#26a69a', downColor:'#ef5350',
+      borderUpColor:'#26a69a', borderDownColor:'#ef5350',
+      wickUpColor:'#26a69a', wickDownColor:'#ef5350'
+    });
+
+    let p = 50000;
+    const data = [];
+    const t = Math.floor(Date.now()/1000) - 86400*60;
+    for(let i=0;i<300;i++){
+      p += (Math.random()-0.5)*500;
+      data.push({time: t+i*3600, open: p-20, high: p+50, low: p-50, close: p+10, volume: Math.random()*10000});
+    }
+    candle.setData(data);
+
+    // Add line series - same pattern as ichimoku
+    const line = chart.addSeries(LightweightCharts.LineSeries, {
+      color: '#2196F3',
+      lineWidth: 2,
+      lastValueVisible: false,
+    });
+    const lineData = data.map(d => ({ time: d.time, value: d.close }));
+    line.setData(lineData);
+
+    // Add area series
+    const area = chart.addSeries(LightweightCharts.AreaSeries, {
+      topColor: 'rgba(76, 175, 80, 0.2)',
+      bottomColor: 'rgba(76, 175, 80, 0.05)',
+      lineColor: 'transparent',
+      lineWidth: 0,
+      lastValueVisible: false,
+    });
+    area.setData(lineData);
+
+    chart.timeScale().fitContent();
+    document.getElementById('status').textContent = 'All series OK (candle+line+area)';
+  }
+} catch(e) {
+  document.getElementById('status').textContent = 'ERROR: ' + e.message;
+}
+</script>
+</body>
+</html>

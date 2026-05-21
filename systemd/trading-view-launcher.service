@@ -1,0 +1,14 @@
+[Unit]
+Description=Trading View Dashboard – Firefox
+After=trading-dashboard.service network-online.target
+Wants=trading-dashboard.service
+
+[Service]
+Type=exec
+Restart=no
+ExecStartPre=/usr/bin/bash -c "while ! curl -s -o /dev/null http://localhost:5000; do sleep 1; done"
+ExecStart=/usr/bin/firefox --new-window http://localhost:5000/?symbol=BTC&timeframe=4h
+ExecStop=/usr/bin/pkill -f "firefox.*localhost:5000" || true
+
+[Install]
+WantedBy=default.target

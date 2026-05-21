@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8">
+<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { height:100%; background:#0d1117; }
+.container { display:flex; flex-direction:column; height:100vh; }
+.topbar { padding:12px; background:#131722; color:#2962FF; font:bold 16px sans-serif; border-bottom:1px solid #2a2e39; }
+.grid { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:2px; padding:2px; }
+.pane { display:flex; flex-direction:column; background:#131722; border:1px solid #2a2e39; border-radius:4px; min-height:0; }
+.header { padding:6px 10px; background:#1e222d; font:12px sans-serif; color:#d1d4dc; flex-shrink:0; }
+.chartarea { flex:1; display:flex; flex-direction:column; min-height:0; }
+.mainchart { flex:1; min-height:100px; }
+</style>
+</head>
+<body>
+<div class="container">
+<div class="topbar">TRADING DASHBOARD — SMOKE TEST</div>
+<div class="grid">
+<div class="pane"><div class="header">BTC — Bitcoin</div><div class="chartarea"><div class="mainchart" id="c1"></div></div></div>
+<div class="pane"><div class="header">ETH — Ethereum</div><div class="chartarea"><div class="mainchart" id="c2"></div></div></div>
+</div>
+</div>
+<script>
+function makeChart(div, color) {
+  const c = LightweightCharts.createChart(div, {
+    width: div.clientWidth||600, height: div.clientHeight||300,
+    layout:{background:{color:'#131722'},textColor:'#d1d4dc'},
+    grid:{vertLines:{color:'#1e222d'},horzLines:{color:'#1e222d'}},
+    timeScale:{timeVisible:true,secondsVisible:false}
+  });
+  const s = c.addSeries(LightweightCharts.CandlestickSeries, {
+    upColor:'#26a69a',downColor:'#ef5350',
+    borderUpColor:'#26a69a',borderDownColor:'#ef5350',
+    wickUpColor:'#26a69a',wickDownColor:'#ef5350'
+  });
+  const data = [];
+  let t = Math.floor(Date.now()/1000)-86400*60;
+  let p = color==='green'?50000:3500;
+  for(let i=0;i<300;i++){
+    p += (Math.random()-0.5)*(p*0.02);
+    data.push({
+      time: t+i*3600,
+      open: p+(Math.random()-0.5)*100,
+      high: p+Math.random()*200+50,
+      low: p-Math.random()*200-50,
+      close: p+(Math.random()-0.5)*100,
+      volume: Math.random()*10000
+    });
+  }
+  s.setData(data);
+  c.timeScale().fitContent();
+  return c;
+}
+window.addEventListener('load', ()=>{
+  makeChart(document.getElementById('c1'), 'green');
+  makeChart(document.getElementById('c2'), 'red');
+  new ResizeObserver(()=>{
+    document.querySelectorAll('.mainchart').forEach(el=>{
+      if(el._chart) el._chart.resize(el.clientWidth, el.clientHeight);
+    });
+  }).observe(document.querySelector('.grid'));
+});
+</script>
+</body>
+</html>
