@@ -1,0 +1,2 @@
+# tradingdash
+Trading View alternative
