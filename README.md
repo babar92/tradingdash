@@ -1,3 +1,5 @@
+![Trading Dashboard](assets/tradingdash-pres.png)
+
 # Trading Dashboard
 
 Real-time multi-pane trading dashboard with **Ichimoku Kinko Hyo**, EMA/SMA/RSI/MACD/Bollinger, drawing tools, and live price updates via WebSocket.
