@@ -484,6 +484,46 @@ html, body {
   flex-shrink: 0;
 }
 
+.sub-chart-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sub-chart-handle {
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: row-resize;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  user-select: none;
+  transition: color 0.15s, background 0.15s;
+}
+
+.sub-chart-handle:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+.sch-label {
+  padding-left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.sch-grip {
+  padding-right: 6px;
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+
 .layers-panel {
   display: flex;
   align-items: center;

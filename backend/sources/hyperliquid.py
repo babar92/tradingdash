@@ -79,7 +79,9 @@ class HyperliquidSource:
 
         duration_map = {'1m': 60000, '5m': 300000, '15m': 900000, '1h': 3600000, '4h': 14400000, '1d': 86400000}
         candle_ms = duration_map.get(timeframe, 3600000)
-        start_ms = now_ms - (candle_ms * limit * 2)
+        max_range = candle_ms * limit * 2
+        max_range = min(max_range, 365 * 86400 * 1000)
+        start_ms = now_ms - max_range
 
         try:
             req = {
@@ -120,7 +122,7 @@ class HyperliquidSource:
             return []
 
         base_tf, multiplier = base_tf_map[timeframe]
-        base_data = self.get_ohlc(symbol, base_tf, limit * multiplier * 2)
+        base_data = self.get_ohlc(symbol, base_tf, limit * multiplier)
         if not base_data:
             return []
 

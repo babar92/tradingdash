@@ -10,10 +10,10 @@ YF_TIMEFRAMES = {
     '5m':  {'interval': '5m',  'period': '1mo'},
     '15m': {'interval': '15m', 'period': '1mo'},
     '30m': {'interval': '30m', 'period': '2mo'},
-    '1h':  {'interval': '60m', 'period': '6mo'},
-    '1d':  {'interval': '1d',  'period': '2y'},
-    '1w':  {'interval': '1wk', 'period': '5y'},
-    '1M':  {'interval': '1mo', 'period': '10y'},
+    '1h':  {'interval': '60m', 'period': 'max'},
+    '1d':  {'interval': '1d',  'period': 'max'},
+    '1w':  {'interval': '1wk', 'period': 'max'},
+    '1M':  {'interval': '1mo', 'period': 'max'},
 }
 
 AGGREGATE_TIMEFRAMES = {
@@ -84,7 +84,7 @@ class YFinanceSource:
                 config = AGGREGATE_TIMEFRAMES[timeframe]
                 if 'months' in config:
                     ticker = yf.Ticker(symbol)
-                    df = ticker.history(period='10y', interval=config['base'])
+                    df = ticker.history(period='max', interval=config['base'])
                     if not df.empty:
                         rule = f'{config["months"]}ME'
                         df = df.resample(rule).agg({
@@ -93,7 +93,7 @@ class YFinanceSource:
                         }).dropna()
                 else:
                     ticker = yf.Ticker(symbol)
-                    df = ticker.history(period='6mo', interval=config['base'])
+                    df = ticker.history(period='max', interval=config['base'])
                     if not df.empty:
                         rule = f'{config["minutes"]}min'
                         df = df.resample(rule).agg({

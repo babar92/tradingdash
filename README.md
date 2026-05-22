@@ -148,6 +148,20 @@ WebSocket events: `subscribe_stock`, `unsubscribe_stock`, `price_update`.
 
 ---
 
+## Changelog
+
+### 2026-05-22 — Cross-Pane Time Sync, Scalable Sub-Charts, Extended History
+
+- **Time‑axis sync**: scrolling/panning the X‑axis on any pane now keeps **all panes** (main + sub‑charts) locked to the same visible range.
+- **Draggable sub‑charts**: RSI, MACD, and Volume panels now have a resize handle (⋮) with labels; height can be adjusted per pane.
+- **RSI period 14 → 7**; labels updated to show period (e.g. `RSI (7)`, `RSI+EMA (7,50)`).
+- **OHLC history**: load limit increased 500 → **5000** candles per pane.
+- **yfinance periods**: all stock intervals now fetch `period='max'` for maximum available history.
+- **Hyperliquid cap**: candle snapshot request capped at 1 year max to avoid timeouts.
+- **Sub‑chart CSS**: `.sub-chart-wrapper`, `.sub-chart-handle`, `.sch-label`, `.sch-grip` styles.
+
+---
+
 ## License
 
 MIT

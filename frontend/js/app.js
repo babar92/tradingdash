@@ -118,8 +118,21 @@ function createPanes(maxCount) {
     div.className = 'pane';
     div.id = `pane-${i}`;
     gridContainer.appendChild(div);
-    panes.push(new ChartPane(i, div, dataBridge, gridManager, setActiveWatchlistSymbol));
+    panes.push(new ChartPane(i, div, dataBridge, gridManager, setActiveWatchlistSymbol, syncPanes));
   }
+}
+
+let _syncingPanes = false;
+
+function syncPanes(sourceId, range) {
+  if (_syncingPanes) return;
+  _syncingPanes = true;
+  for (const pane of panes) {
+    if (pane.paneId !== sourceId && pane.mainChart) {
+      pane.syncToRange(range);
+    }
+  }
+  _syncingPanes = false;
 }
 
 function setActiveWatchlistSymbol(symbol) {

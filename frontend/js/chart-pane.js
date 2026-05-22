@@ -1,10 +1,12 @@
 class ChartPane {
-  constructor(paneId, container, dataBridge, gridManager, onSymbolLoaded) {
+  constructor(paneId, container, dataBridge, gridManager, onSymbolLoaded, onSync) {
     this.paneId = paneId;
     this.container = container;
     this.dataBridge = dataBridge;
     this.gridManager = gridManager;
     this.onSymbolLoaded = onSymbolLoaded || (() => {});
+    this.onSync = onSync || (() => {});
+    this._syncing = false;
 
     this.symbol = null;
     this.source = null;
@@ -132,9 +134,9 @@ class ChartPane {
       { key: 'ema200', label: 'EMA(200)', defaultOn: false },
       { key: 'sma', label: 'SMA(20)', defaultOn: false },
       { key: 'ema', label: 'EMA(20)', defaultOn: false },
-      { key: 'bb', label: 'Bollinger', defaultOn: false },
-      { key: 'rsi', label: 'RSI', defaultOn: false },
-      { key: 'rsi_ema', label: 'RSI+EMA', defaultOn: false },
+      { key: 'bb', label: 'Bollinger (20,2)', defaultOn: false },
+      { key: 'rsi', label: 'RSI (7)', defaultOn: false },
+      { key: 'rsi_ema', label: 'RSI+EMA (7,50)', defaultOn: false },
       { key: 'macd', label: 'MACD', defaultOn: false },
       { key: 'volume', label: 'Volume', defaultOn: false },
     ];
@@ -197,6 +199,16 @@ class ChartPane {
 
     this.drawings = new DrawingsManager(this);
 
+    this.mainChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+      if (!this._syncing && range) {
+        for (const key of Object.keys(this.subCharts)) {
+          const sub = this.subCharts[key];
+          if (sub.chart) sub.chart.timeScale().setVisibleLogicalRange(range);
+        }
+        this.onSync(this.paneId, range);
+      }
+    });
+
     requestAnimationFrame(() => this._doResize());
     if (window.ResizeObserver) {
       this._resizeObserver = new ResizeObserver(() => this._doResize());
@@ -221,14 +233,37 @@ class ChartPane {
     }
   }
 
-  _createSubChart(height) {
+  syncToRange(range) {
+    if (!this.mainChart || !range) return;
+    this._syncing = true;
+    this.mainChart.timeScale().setVisibleLogicalRange(range);
+    for (const key of Object.keys(this.subCharts)) {
+      const sub = this.subCharts[key];
+      if (sub.chart) sub.chart.timeScale().setVisibleLogicalRange(range);
+    }
+    this._syncing = false;
+  }
+
+  _createSubChart(height, label) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'sub-chart-wrapper';
+    wrapper.style.height = height + 'px';
+
+    const handle = document.createElement('div');
+    handle.className = 'sub-chart-handle';
+    handle.innerHTML = '<span class="sch-label">' + (label || '') + '</span><span class="sch-grip">\u22EE</span>';
+    wrapper.appendChild(handle);
+
     const div = document.createElement('div');
-    div.style.height = height + 'px';
-    this.subChartDiv.appendChild(div);
+    div.style.height = (height - 16) + 'px';
+    div.style.width = '100%';
+    wrapper.appendChild(div);
+
+    this.subChartDiv.appendChild(wrapper);
 
     const chart = LightweightCharts.createChart(div, {
       width: this.mainChartDiv.clientWidth || 400,
-      height: height,
+      height: height - 16,
       layout: {
         background: { color: '#131722' },
         textColor: '#d1d4dc',
@@ -249,7 +284,47 @@ class ChartPane {
     });
 
     chart.timeScale().fitContent();
-    return { div, chart };
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+      if (!this._syncing && range) {
+        this.mainChart.timeScale().setVisibleLogicalRange(range);
+        for (const key of Object.keys(this.subCharts)) {
+          const sub = this.subCharts[key];
+          if (sub.chart && sub.chart !== chart) sub.chart.timeScale().setVisibleLogicalRange(range);
+        }
+        this.onSync(this.paneId, range);
+      }
+    });
+
+    let dragging = false;
+    let startY = 0;
+    let startH = 0;
+
+    handle.addEventListener('mousedown', (e) => {
+      dragging = true;
+      startY = e.clientY;
+      startH = wrapper.offsetHeight;
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const newH = Math.max(50, startH + (e.clientY - startY));
+      wrapper.style.height = newH + 'px';
+      div.style.height = (newH - 16) + 'px';
+      chart.resize(div.clientWidth || this.mainChartDiv.clientWidth, newH - 16);
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (dragging) {
+        dragging = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    });
+
+    return { div, chart, wrapper };
   }
 
   setSymbolList(symbols) {
@@ -316,7 +391,7 @@ class ChartPane {
   async loadData() {
     if (!this.symbol) return;
 
-    const data = await this.dataBridge.fetchOHLC(this.symbol, this.source, this.timeframe, 500);
+    const data = await this.dataBridge.fetchOHLC(this.symbol, this.source, this.timeframe, 5000);
     if (!data || data.length === 0) {
       console.warn(`No OHLC data for ${this.symbol}`);
       return;
@@ -492,7 +567,7 @@ class ChartPane {
       }
     }
     if (this.subCharts[key]) {
-      this.subCharts[key].div.remove();
+      (this.subCharts[key].wrapper || this.subCharts[key].div).remove();
       delete this.subCharts[key];
     }
     if (key === 'ichimoku' || key.startsWith('ichimoku_')) {
@@ -737,10 +812,10 @@ class ChartPane {
   }
 
   _renderRSI() {
-    const data = Indicators.rsi(this.ohlcData, 14);
+    const data = Indicators.rsi(this.ohlcData, 7);
     if (data.length === 0) return;
 
-    const sub = this._createSubChart(80);
+    const sub = this._createSubChart(80, 'RSI (7)');
     this.subCharts['rsi'] = sub;
 
     const rsiSeries = sub.chart.addSeries(LightweightCharts.LineSeries, {
@@ -771,13 +846,13 @@ class ChartPane {
   }
 
   _renderRSI_EMA() {
-    const rsiData = Indicators.rsi(this.ohlcData, 14);
+    const rsiData = Indicators.rsi(this.ohlcData, 7);
     if (rsiData.length < 60) return;
 
     const emaData = Indicators.ema(rsiData.map(d => ({ time: d.time, close: d.value })), 50);
     if (emaData.length === 0) return;
 
-    const sub = this._createSubChart(120);
+    const sub = this._createSubChart(120, 'RSI+EMA (7, 50)');
     this.subCharts['rsi_ema'] = sub;
 
     const rsiSeries = sub.chart.addSeries(LightweightCharts.LineSeries, {
@@ -834,7 +909,7 @@ class ChartPane {
     if (this.ohlcData.length < 35) return;
     const { macdLine, signalLine, histogram } = Indicators.macd(this.ohlcData, 12, 26, 9);
 
-    const sub = this._createSubChart(100);
+    const sub = this._createSubChart(100, 'MACD');
     this.subCharts['macd'] = sub;
 
     const macdSeries = sub.chart.addSeries(LightweightCharts.LineSeries, {
@@ -871,7 +946,7 @@ class ChartPane {
     const data = Indicators.volume(this.ohlcData);
     if (data.length === 0) return;
 
-    const sub = this._createSubChart(120);
+    const sub = this._createSubChart(120, 'Volume');
     this.subCharts['volume'] = sub;
 
     this.indicatorSeries['volume'] = sub.chart.addSeries(LightweightCharts.HistogramSeries, {
