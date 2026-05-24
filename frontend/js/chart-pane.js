@@ -100,6 +100,13 @@ class ChartPane {
       this.chartTypeBar.appendChild(btn);
     });
 
+    this._clickToggle = (ind, row, eye) => {
+      const on = !this.indicatorsState[ind.key];
+      this.toggleIndicator(ind.key, on);
+      row.classList.toggle('active', on);
+      eye.textContent = on ? '\u25CF' : '\u25CB';
+    };
+
     this.controls.append(this.symbolSelect, this.timeframeBar, this.chartTypeBar, this.btnAutoFit, this.btnLogScale);
     this.header.append(this.tickerBar, this.controls);
 
@@ -108,7 +115,6 @@ class ChartPane {
 
     this.mainChartDiv = document.createElement('div');
     this.mainChartDiv.className = 'main-chart';
-    this.mainChartDiv.style.position = 'relative';
     this.chartArea.appendChild(this.mainChartDiv);
 
     this.watermarkEl = document.createElement('div');
@@ -161,12 +167,7 @@ class ChartPane {
       name.textContent = ind.label;
 
       row.append(eye, line, name);
-      row.addEventListener('click', () => {
-        const on = !row.classList.contains('active');
-        this.toggleIndicator(ind.key, on);
-        row.classList.toggle('active', on);
-        eye.textContent = on ? '\u25CF' : '\u25CB';
-      });
+      row.addEventListener('click', () => this._clickToggle(ind, row, eye));
       this.layersPanel.appendChild(row);
       this.indicatorsState[ind.key] = ind.defaultOn;
     });
@@ -200,18 +201,8 @@ class ChartPane {
 
     this.drawings = new DrawingsManager(this);
 
-    this._cloudSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    this._cloudSvg.style.position = 'absolute';
-    this._cloudSvg.style.top = '0';
-    this._cloudSvg.style.left = '0';
-    this._cloudSvg.style.width = '100%';
-    this._cloudSvg.style.height = '100%';
-    this._cloudSvg.style.pointerEvents = 'none';
-    this._cloudSvg.style.overflow = 'visible';
-    this.mainChartDiv.insertBefore(this._cloudSvg, this.watermarkEl);
-
     this.mainChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-      this._drawCloud();
+      if (this._cloudSvg) this._drawCloud();
       if (!this._syncing && range) {
         for (const key of Object.keys(this.subCharts)) {
           const sub = this.subCharts[key];
@@ -239,7 +230,6 @@ class ChartPane {
         if (sub.chart) sub.chart.resize(w, sub.div.clientHeight || 80);
       }
       if (this.drawings) { this.drawings._resizeCanvas(); this.drawings.render(); }
-      this._drawCloud();
       this.mainChart.timeScale().fitContent();
     } else {
       requestAnimationFrame(() => this._doResize());
@@ -491,6 +481,7 @@ class ChartPane {
         this.candleSeries.update(candle);
       }
     }
+    try { this._renderCrossMarkers(); } catch (_) {}
   }
 
   _getTimeframeSeconds() {
@@ -504,26 +495,9 @@ class ChartPane {
 
   toggleIndicator(key, enabled) {
     this.indicatorsState[key] = enabled;
-    try {
-      this.removeIndicator(key);
-    } catch (e) {
-      console.warn('removeIndicator error for', key, e);
-    }
+    this.removeIndicator(key);
     if (enabled) {
-      try {
-        this.renderSingleIndicator(key);
-      } catch (e) {
-        console.warn('renderSingleIndicator error for', key, e);
-      }
-    }
-    if (this.candleSeries) {
-      this.mainChart.removeSeries(this.candleSeries);
-    }
-    this._recreateCandleSeries();
-    try {
-      this._renderCrossMarkers();
-    } catch (e) {
-      console.warn('renderCrossMarkers error', e);
+      this.renderSingleIndicator(key);
     }
   }
 
@@ -536,6 +510,12 @@ class ChartPane {
 
   renderSingleIndicator(key) {
     if (!this.ohlcData || this.ohlcData.length === 0) return;
+
+    const prefix = key + '_';
+    for (const k of Object.keys(this.indicatorSeries)) {
+      if (k === key || k.startsWith(prefix)) return;
+    }
+    if (this.subCharts[key]) return;
 
     switch (key) {
       case 'ichimoku':
@@ -586,7 +566,7 @@ class ChartPane {
     if (key === 'ichimoku' || key.startsWith('ichimoku_')) {
       this.ichimokuData = [];
       this.ichimokuCloud = [];
-      if (this._cloudSvg) this._cloudSvg.innerHTML = '';
+      if (this._cloudSvg) { this._cloudSvg.remove(); this._cloudSvg = null; }
     }
   }
 
@@ -597,7 +577,7 @@ class ChartPane {
     this.subChartDiv.innerHTML = '';
     this.ichimokuData = [];
     this.ichimokuCloud = [];
-    if (this._cloudSvg) this._cloudSvg.innerHTML = '';
+    if (this._cloudSvg) { this._cloudSvg.remove(); this._cloudSvg = null; }
   }
 
   _renderSMA() {
@@ -780,7 +760,23 @@ class ChartPane {
     this.indicatorSeries['ichimoku_kijun'].setData(ichi.kijun);
     this.indicatorSeries['ichimoku_chikou'].setData(ichi.chikou);
 
+    this._setupCloudSvg();
     this._drawCloud();
+  }
+
+  _setupCloudSvg() {
+    if (this._cloudSvg) { this._cloudSvg.innerHTML = ''; return; }
+    const ns = 'http://www.w3.org/2000/svg';
+    this._cloudSvg = document.createElementNS(ns, 'svg');
+    const s = this._cloudSvg.style;
+    s.position = 'absolute';
+    s.top = '0';
+    s.left = '0';
+    s.width = '100%';
+    s.height = '100%';
+    s.pointerEvents = 'none';
+    s.zIndex = '0';
+    this.mainChartDiv.appendChild(this._cloudSvg);
   }
 
   _drawCloud() {
@@ -823,12 +819,8 @@ class ChartPane {
     for (const seg of segments) {
       if (seg.pts.length < 2) continue;
       const d = ['M', seg.pts[0].x, seg.pts[0].yTop];
-      for (let i = 1; i < seg.pts.length; i++) {
-        d.push('L', seg.pts[i].x, seg.pts[i].yTop);
-      }
-      for (let i = seg.pts.length - 1; i >= 0; i--) {
-        d.push('L', seg.pts[i].x, seg.pts[i].yBot);
-      }
+      for (let i = 1; i < seg.pts.length; i++) d.push('L', seg.pts[i].x, seg.pts[i].yTop);
+      for (let i = seg.pts.length - 1; i >= 0; i--) d.push('L', seg.pts[i].x, seg.pts[i].yBot);
       d.push('Z');
       const path = document.createElementNS(ns, 'path');
       path.setAttribute('d', d.join(' '));

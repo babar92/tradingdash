@@ -150,9 +150,10 @@ WebSocket events: `subscribe_stock`, `unsubscribe_stock`, `price_update`.
 
 ## Changelog
 
-### 2026-05-22 — Ichimoku Cloud Canvas Rewrite, Cross-Pane Sync, Sub-Charts
+### 2026-05-22 — Ichimoku Cloud SVG, Cross-Pane Sync, Indicator Toggle Fix
 
-- **Ichimoku cloud via canvas overlay**: cloud fill now rendered on a dedicated `canvas` instead of LightweightCharts AreaSeries — eliminates gaps between segments and color overflow.
+- **Ichimoku cloud via SVG overlay**: cloud fill rendered as `<path>` polygons — eliminates gaps and color overflow.
+- **Indicator toggle fix**: `toggleIndicator()` no longer recreates candle series; `renderSingleIndicator()` guards against duplicates; click handler uses `indicatorsState` as source of truth.
 - **Time‑axis sync**: scrolling/panning the X‑axis on any pane now keeps **all panes** (main + sub‑charts) locked to the same visible range.
 - **Draggable sub‑charts**: RSI, MACD, and Volume panels now have a resize handle (⋮) with labels; height can be adjusted per pane.
 - **RSI period 14 → 7**; labels updated to show period (e.g. `RSI (7)`, `RSI+EMA (7,50)`).
