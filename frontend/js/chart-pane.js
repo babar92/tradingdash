@@ -108,6 +108,7 @@ class ChartPane {
 
     this.mainChartDiv = document.createElement('div');
     this.mainChartDiv.className = 'main-chart';
+    this.mainChartDiv.style.position = 'relative';
     this.chartArea.appendChild(this.mainChartDiv);
 
     this.watermarkEl = document.createElement('div');
@@ -199,7 +200,19 @@ class ChartPane {
 
     this.drawings = new DrawingsManager(this);
 
+    this._cloudCanvas = document.createElement('canvas');
+    this._cloudCanvas.style.position = 'absolute';
+    this._cloudCanvas.style.top = '0';
+    this._cloudCanvas.style.left = '0';
+    this._cloudCanvas.style.width = '100%';
+    this._cloudCanvas.style.height = '100%';
+    this._cloudCanvas.style.pointerEvents = 'none';
+    this._cloudCanvas.style.zIndex = '1';
+    this.mainChartDiv.insertBefore(this._cloudCanvas, this.watermarkEl);
+    this._cloudCtx = this._cloudCanvas.getContext('2d');
+
     this.mainChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+      this._drawCloud();
       if (!this._syncing && range) {
         for (const key of Object.keys(this.subCharts)) {
           const sub = this.subCharts[key];
@@ -227,6 +240,7 @@ class ChartPane {
         if (sub.chart) sub.chart.resize(w, sub.div.clientHeight || 80);
       }
       if (this.drawings) { this.drawings._resizeCanvas(); this.drawings.render(); }
+      this._drawCloud();
       this.mainChart.timeScale().fitContent();
     } else {
       requestAnimationFrame(() => this._doResize());
@@ -571,7 +585,11 @@ class ChartPane {
       delete this.subCharts[key];
     }
     if (key === 'ichimoku' || key.startsWith('ichimoku_')) {
+      this.ichimokuData = [];
       this.ichimokuCloud = [];
+      if (this._cloudCtx && this._cloudCanvas) {
+        this._cloudCtx.clearRect(0, 0, this._cloudCanvas.width, this._cloudCanvas.height);
+      }
     }
   }
 
@@ -580,7 +598,11 @@ class ChartPane {
       this.removeIndicator(key);
     }
     this.subChartDiv.innerHTML = '';
+    this.ichimokuData = [];
     this.ichimokuCloud = [];
+    if (this._cloudCtx && this._cloudCanvas) {
+      this._cloudCtx.clearRect(0, 0, this._cloudCanvas.width, this._cloudCanvas.height);
+    }
   }
 
   _renderSMA() {
@@ -725,65 +747,18 @@ class ChartPane {
     const ichi = Indicators.ichimoku(this.ohlcData);
     if (!ichi) return;
 
-    const cloud = ichi.cloud || [];
-    this.ichimokuCloud = cloud;
-
-    const bgColor = '#131722';
-
-    if (cloud.length >= 2) {
-      const segments = [];
-      let cur = null;
-      for (const c of cloud) {
-        if (!cur || cur.isGreen !== c.isGreen) {
-          cur = { isGreen: c.isGreen, points: [] };
-          segments.push(cur);
-        }
-        cur.points.push(c);
-      }
-
-      segments.forEach((seg, idx) => {
-        const color = seg.isGreen
-          ? 'rgba(38, 166, 154, 0.35)'
-          : 'rgba(239, 83, 80, 0.35)';
-
-        const fillKey = 'ichimoku_cf_' + idx;
-        const eraseKey = 'ichimoku_ce_' + idx;
-
-        this.indicatorSeries[fillKey] = this.mainChart.addSeries(LightweightCharts.AreaSeries, {
-          topColor: color,
-          bottomColor: color,
-          lineColor: 'transparent',
-          lineWidth: 0,
-          lastValueVisible: false,
-          priceLineVisible: false,
-          autoscaleInfoProvider: () => null,
-        });
-        this.indicatorSeries[fillKey].setData(seg.points.map(p => ({ time: p.time, value: p.top })));
-
-        this.indicatorSeries[eraseKey] = this.mainChart.addSeries(LightweightCharts.AreaSeries, {
-          topColor: bgColor,
-          bottomColor: bgColor,
-          lineColor: 'transparent',
-          lineWidth: 0,
-          lastValueVisible: false,
-          priceLineVisible: false,
-          autoscaleInfoProvider: () => null,
-        });
-        this.indicatorSeries[eraseKey].setData(seg.points.map(p => ({ time: p.time, value: p.bottom })));
-      });
-    }
+    this.ichimokuData = ichi.cloud || [];
+    this.ichimokuCloud = this.ichimokuData;
 
     this.indicatorSeries['ichimoku_spanA'] = this.mainChart.addSeries(LightweightCharts.LineSeries, {
       color: '#4CAF50',
       lineWidth: 1,
-      lineStyle: LightweightCharts.LineStyle.Dotted,
       lastValueVisible: false,
       autoscaleInfoProvider: () => null,
     });
     this.indicatorSeries['ichimoku_spanB'] = this.mainChart.addSeries(LightweightCharts.LineSeries, {
       color: '#FF5722',
       lineWidth: 1,
-      lineStyle: LightweightCharts.LineStyle.Dotted,
       lastValueVisible: false,
       autoscaleInfoProvider: () => null,
     });
@@ -809,6 +784,64 @@ class ChartPane {
     this.indicatorSeries['ichimoku_tenkan'].setData(ichi.tenkan);
     this.indicatorSeries['ichimoku_kijun'].setData(ichi.kijun);
     this.indicatorSeries['ichimoku_chikou'].setData(ichi.chikou);
+
+    this._drawCloud();
+  }
+
+  _drawCloud() {
+    const ctx = this._cloudCtx;
+    const canvas = this._cloudCanvas;
+    if (!ctx || !canvas) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.mainChartDiv.clientWidth;
+    const h = this.mainChartDiv.clientHeight;
+    if (w < 10 || h < 10) return;
+
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    if (!this.ichimokuData || this.ichimokuData.length < 2) return;
+
+    const ts = this.mainChart.timeScale();
+    const ps = this.mainChart.priceScale('right');
+
+    const pts = [];
+    for (const p of this.ichimokuData) {
+      const x = ts.timeToCoordinate(p.time);
+      const yTop = ps.priceToCoordinate(p.top);
+      const yBot = ps.priceToCoordinate(p.bottom);
+      if (x === null || yTop === null || yBot === null) continue;
+      pts.push({ x, yTop, yBot, isGreen: p.isGreen });
+    }
+    if (pts.length < 2) return;
+
+    const segments = [];
+    let cur = null;
+    for (const p of pts) {
+      if (!cur || cur.isGreen !== p.isGreen) {
+        cur = { isGreen: p.isGreen, top: [], bot: [] };
+        segments.push(cur);
+      }
+      cur.top.push({ x: p.x, y: p.yTop });
+      cur.bot.push({ x: p.x, y: p.yBot });
+    }
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    for (const seg of segments) {
+      if (seg.top.length < 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(seg.top[0].x, seg.top[0].y);
+      for (let i = 1; i < seg.top.length; i++) ctx.lineTo(seg.top[i].x, seg.top[i].y);
+      for (let i = seg.bot.length - 1; i >= 0; i--) ctx.lineTo(seg.bot[i].x, seg.bot[i].y);
+      ctx.closePath();
+      ctx.fillStyle = seg.isGreen ? 'rgba(38, 166, 154, 0.25)' : 'rgba(239, 83, 80, 0.25)';
+      ctx.fill();
+    }
   }
 
   _renderRSI() {
