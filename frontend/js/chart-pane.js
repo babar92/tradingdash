@@ -200,16 +200,15 @@ class ChartPane {
 
     this.drawings = new DrawingsManager(this);
 
-    this._cloudCanvas = document.createElement('canvas');
-    this._cloudCanvas.style.position = 'absolute';
-    this._cloudCanvas.style.top = '0';
-    this._cloudCanvas.style.left = '0';
-    this._cloudCanvas.style.width = '100%';
-    this._cloudCanvas.style.height = '100%';
-    this._cloudCanvas.style.pointerEvents = 'none';
-    this._cloudCanvas.style.zIndex = '1';
-    this.mainChartDiv.insertBefore(this._cloudCanvas, this.watermarkEl);
-    this._cloudCtx = this._cloudCanvas.getContext('2d');
+    this._cloudSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    this._cloudSvg.style.position = 'absolute';
+    this._cloudSvg.style.top = '0';
+    this._cloudSvg.style.left = '0';
+    this._cloudSvg.style.width = '100%';
+    this._cloudSvg.style.height = '100%';
+    this._cloudSvg.style.pointerEvents = 'none';
+    this._cloudSvg.style.overflow = 'visible';
+    this.mainChartDiv.insertBefore(this._cloudSvg, this.watermarkEl);
 
     this.mainChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
       this._drawCloud();
@@ -587,9 +586,7 @@ class ChartPane {
     if (key === 'ichimoku' || key.startsWith('ichimoku_')) {
       this.ichimokuData = [];
       this.ichimokuCloud = [];
-      if (this._cloudCtx && this._cloudCanvas) {
-        this._cloudCtx.clearRect(0, 0, this._cloudCanvas.width, this._cloudCanvas.height);
-      }
+      if (this._cloudSvg) this._cloudSvg.innerHTML = '';
     }
   }
 
@@ -600,9 +597,7 @@ class ChartPane {
     this.subChartDiv.innerHTML = '';
     this.ichimokuData = [];
     this.ichimokuCloud = [];
-    if (this._cloudCtx && this._cloudCanvas) {
-      this._cloudCtx.clearRect(0, 0, this._cloudCanvas.width, this._cloudCanvas.height);
-    }
+    if (this._cloudSvg) this._cloudSvg.innerHTML = '';
   }
 
   _renderSMA() {
@@ -789,19 +784,15 @@ class ChartPane {
   }
 
   _drawCloud() {
-    const ctx = this._cloudCtx;
-    const canvas = this._cloudCanvas;
-    if (!ctx || !canvas) return;
+    const svg = this._cloudSvg;
+    if (!svg) return;
 
-    const dpr = window.devicePixelRatio || 1;
     const w = this.mainChartDiv.clientWidth;
     const h = this.mainChartDiv.clientHeight;
     if (w < 10 || h < 10) return;
 
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
+    svg.innerHTML = '';
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
 
     if (!this.ichimokuData || this.ichimokuData.length < 2) return;
 
@@ -822,25 +813,28 @@ class ChartPane {
     let cur = null;
     for (const p of pts) {
       if (!cur || cur.isGreen !== p.isGreen) {
-        cur = { isGreen: p.isGreen, top: [], bot: [] };
+        cur = { isGreen: p.isGreen, pts: [] };
         segments.push(cur);
       }
-      cur.top.push({ x: p.x, y: p.yTop });
-      cur.bot.push({ x: p.x, y: p.yBot });
+      cur.pts.push(p);
     }
 
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
+    const ns = 'http://www.w3.org/2000/svg';
     for (const seg of segments) {
-      if (seg.top.length < 2) continue;
-      ctx.beginPath();
-      ctx.moveTo(seg.top[0].x, seg.top[0].y);
-      for (let i = 1; i < seg.top.length; i++) ctx.lineTo(seg.top[i].x, seg.top[i].y);
-      for (let i = seg.bot.length - 1; i >= 0; i--) ctx.lineTo(seg.bot[i].x, seg.bot[i].y);
-      ctx.closePath();
-      ctx.fillStyle = seg.isGreen ? 'rgba(38, 166, 154, 0.25)' : 'rgba(239, 83, 80, 0.25)';
-      ctx.fill();
+      if (seg.pts.length < 2) continue;
+      const d = ['M', seg.pts[0].x, seg.pts[0].yTop];
+      for (let i = 1; i < seg.pts.length; i++) {
+        d.push('L', seg.pts[i].x, seg.pts[i].yTop);
+      }
+      for (let i = seg.pts.length - 1; i >= 0; i--) {
+        d.push('L', seg.pts[i].x, seg.pts[i].yBot);
+      }
+      d.push('Z');
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', d.join(' '));
+      path.setAttribute('fill', seg.pts[0].isGreen ? 'rgba(38,166,154,0.30)' : 'rgba(239,83,80,0.30)');
+      path.setAttribute('stroke', 'none');
+      svg.appendChild(path);
     }
   }
 
